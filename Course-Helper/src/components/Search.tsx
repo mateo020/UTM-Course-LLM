@@ -21,7 +21,10 @@ const fetchSearch = async (userInput: string) => {
 
 const SearchBar: React.FC = () => {
   const [query, setQuery] = useState<string>(""); // State to store the search query
-  const [results, setResults] = useState<Result[]>([]);
+  const [results, setResults] = useState<Result[]>(
+    JSON.parse(localStorage.getItem("searchResults") || "[]") as Result[] //Retrieve cached result if it exists
+  );
+
 
   const [loading, setLoading] = useState<boolean>(false); // State to indicate loading
   const navigate = useNavigate(); 
@@ -37,6 +40,7 @@ const SearchBar: React.FC = () => {
     try {
       const searchResults = await fetchSearch(query); // Fetch results from the API
       setResults(searchResults); // Update results state with API response
+      localStorage.setItem("searchResults", JSON.stringify(searchResults)); //Add the search results to localStorage cache
     } catch (error) {
       console.error("Error performing search:", error);
     } finally {
