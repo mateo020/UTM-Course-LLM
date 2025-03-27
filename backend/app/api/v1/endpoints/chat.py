@@ -2,33 +2,37 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import os
+import sys
+from pathlib import Path
 from dotenv import load_dotenv
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import TextLoader
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain.prompts import ChatPromptTemplate
+from langchain.chains import create_retrieval_chain
 from langchain.schema.output_parser import StrOutputParser
 
 load_dotenv()
-
+# Add v1
+root_dir = Path(__file__).resolve().parents[5]
+sys.path.append(str(root_dir))
+sys.path.append(str(root_dir / 'v1'))
+sys.path.append(str(root_dir / 'v1' / 'src'))
 router = APIRouter()
+
+#absolute paths 
+BACKEND_DIR = Path(__file__).resolve().prents[3] 
+DOCUMENTS_DIR = BACKEND_DIR / "files"
+
+
+from v1.src.rag.retriever import setup_rag, set_rag_retriever, get_relevant_context
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     raise ValueError("Missing OPENAI_API_KEY")
 
-# Load documents once at startup
-loader_course = TextLoader("./app/files/course_data.txt", encoding = 'UTF-8')
-loader_program = TextLoader("./app/files/program_info (2).txt", encoding = 'UTF-8')
-all_docs = loader_course.load() + loader_program.load()
-
-text_splitter = RecursiveCharacterTextSplitter(chunk_size=5000, chunk_overlap=100)
-splits = text_splitter.split_documents(all_docs)
-
-embeddings = OpenAIEmbeddings(api_key=OPENAI_API_KEY, model="text-embedding-3-small")
-vector_store = FAISS.from_documents(splits, embeddings)
-retriever = vector_store.as_retriever()
+# 
 
 llm = ChatOpenAI(
     api_key=OPENAI_API_KEY,
@@ -39,7 +43,7 @@ llm = ChatOpenAI(
 
 prompt_template = """
 You are an academic assistant. Answer based on the context.
-If the context is not relevant, state that clearly.
+If the context is not relevant, state that clearly Dont asnwer with anithing other than the what is in the context.
 
 Context:
 {context}
@@ -63,8 +67,8 @@ async def chat_endpoint(request: ChatRequest):
         if not request.question:
             raise HTTPException(status_code=400, detail="Question is required.")
 
-        context_docs = retriever.invoke(request.question)
-        context_text = "\n".join(doc.page_content for doc in context_docs)
+        
+        
 
         response = rag_chain.invoke({
             "context": context_text,
