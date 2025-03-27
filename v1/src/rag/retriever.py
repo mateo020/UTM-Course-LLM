@@ -95,12 +95,12 @@ def setup_rag(file_paths: List[str]):
             child_splitter=RecursiveCharacterTextSplitter(
                 chunk_size=1000,
                 chunk_overlap=0,
-                separatoes=["course:"],
+                separators=["course:"],
             ),
             parent_splitter=RecursiveCharacterTextSplitter(
                 chunk_size=500,
                 chunk_overlap=500,
-                separators=["\n\n", "\n", ".", "!", "?", ";"],
+                separators=["\n\n", "!", "?", ";"],
             ),
             earch_kwargs={"k": 4},
         )
@@ -109,12 +109,12 @@ def setup_rag(file_paths: List[str]):
     child_splitter=RecursiveCharacterTextSplitter(
         chunk_size=1000,
         chunk_overlap=0,
-        separatoes=["course:"],
+        separators=["course:"],
     )
     parent_splitter=RecursiveCharacterTextSplitter(
         chunk_size=500,
         chunk_overlap=500,
-        separators=["\n\n", "\n", ".", "!", "?", ";"],
+        separators=["\n\n", "!", "?", ";"],
     )
     embeddings = OpenAIEmbeddings(model="text-embedding-ada-002")
     vector_store = FAISS.from_texts(["placeholder"], embeddings)
@@ -149,6 +149,7 @@ def setup_rag(file_paths: List[str]):
         retriever.add_documents(all_docs)
 
         save_rag_cache(file_paths,vector_store,doc_store)
+    return retriever                   
 
 
 
