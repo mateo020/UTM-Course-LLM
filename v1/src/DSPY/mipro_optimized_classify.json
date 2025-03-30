@@ -1,0 +1,23 @@
+{
+  "lm": null,
+  "traces": [],
+  "train": [],
+  "demos": [],
+  "signature": {
+    "instructions": "Classify user question.",
+    "fields": [
+      {
+        "prefix": "Event:",
+        "description": "${event}"
+      },
+      {
+        "prefix": "Category:",
+        "description": "${category}"
+      },
+      {
+        "prefix": "Confidence:",
+        "description": "${confidence}"
+      }
+    ]
+  }
+}

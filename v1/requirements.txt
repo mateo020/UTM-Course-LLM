@@ -12,3 +12,5 @@ pdf2image
 pdfplumber
 PyMuPDF>=1.20.0  # fitz
 Pillow>=10.0.0  # PIL
+langchain>=0.1.0
+python-dotenv>=1.0.0
