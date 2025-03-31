@@ -95,12 +95,12 @@ def setup_rag(file_paths: List[str]):
             child_splitter=RecursiveCharacterTextSplitter(
                 chunk_size=1000,
                 chunk_overlap=0,
-                separators=["course:"],
+                separators=[":", "•","\n\n"],
             ),
             parent_splitter=RecursiveCharacterTextSplitter(
                 chunk_size=500,
                 chunk_overlap=500,
-                separators=["\n\n", "!", "?", ";"],
+                separators=[":", "•","\n\n"],
             ),
             earch_kwargs={"k": 4},
         )
@@ -109,12 +109,12 @@ def setup_rag(file_paths: List[str]):
     child_splitter=RecursiveCharacterTextSplitter(
         chunk_size=1000,
         chunk_overlap=0,
-        separators=["course:"],
+        separators=[":", "•","\n\n"],
     )
     parent_splitter=RecursiveCharacterTextSplitter(
         chunk_size=500,
         chunk_overlap=500,
-        separators=["\n\n", "!", "?", ";"],
+        separators=[":","\n\n"],
     )
     embeddings = OpenAIEmbeddings(model="text-embedding-ada-002")
     vector_store = FAISS.from_texts(["placeholder"], embeddings)
@@ -137,6 +137,7 @@ def setup_rag(file_paths: List[str]):
             cleaned_docs = []
             for doc in docs:
                 cleaned_text = " ".join(doc.page_content.split())
+                print(f"Cleaned text: {cleaned_text}")
                 if len(cleaned_text.strip()) > 0:
                     cleaned_docs.append(Document(page_content=cleaned_text))
             all_docs.extend(cleaned_docs)
@@ -144,6 +145,7 @@ def setup_rag(file_paths: List[str]):
         except Exception as e:
             print(f"Error Loading file: {e}")
     #set up rag 
+    print(f"All docs: {all_docs}")
     if all_docs:
         #add documents to retriever
         retriever.add_documents(all_docs)
@@ -165,23 +167,29 @@ def get_rag_retriever():
     return _global_retriever
 
 
-def set_rag_retriever(retriver):
-    """Set the gloabl RAG retriever instance"""
+def set_rag_retriever(retriever):
+    """Set the global RAG retriever instance"""
     global _global_retriever
-    _global_retriever = retriver
+    _global_retriever = retriever
+    print(f"Retriever set: {retriever is not None}")
 
 def get_relevant_context(query: str, k: int =4) -> str:
     """Get relevant context from supplementary files using RAG"""
     global _global_retriever
+    print("try")
     try:
+        print(f"Global retriever exists: {_global_retriever is not None}")
         if not _global_retriever:
+            print("No retriever available")
             return ""
+            
+        print(f"Querying with: {query}")
         relevant_docs = _global_retriever.invoke(
             query,
             config={"search_kwargs": {"k": k, "score_threshold": 0.7}}
-          
         )
         
+        print(f"Found {len(relevant_docs)} relevant documents")
         relevant_docs = relevant_docs[:k]
 
         contexts = []
@@ -190,6 +198,7 @@ def get_relevant_context(query: str, k: int =4) -> str:
             contexts.append(f"[{i}]{clean_text}")
 
         context = "\n\n".join(contexts)
+        print(f"Returning context of length: {len(context)}")
         return context 
     except Exception as e:
         print(f"Error retrieving context: {e}")

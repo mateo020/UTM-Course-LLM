@@ -33,8 +33,8 @@ sys.path.append(str(root_dir / 'v1' / 'src'))
 router = APIRouter()
 
 #absolute paths 
-BACKEND_DIR = Path(__file__).resolve().parents[3] 
-DOCUMENTS_DIR = BACKEND_DIR / "files"
+ROOT_DIR = Path(__file__).resolve().parents[5] 
+DOCUMENTS_DIR = ROOT_DIR / "v1" / "files"
 
 from v1.src.rag.retriever import setup_rag, set_rag_retriever, get_relevant_context, get_rag_retriever
 
@@ -45,6 +45,10 @@ if not OPENAI_API_KEY:
 # Initialize RAG retriever
 retriever = setup_rag([str(DOCUMENTS_DIR / "course_data.txt")])
 set_rag_retriever(retriever)
+print("RAG retriever initialized")
+print(retriever)
+print(get_relevant_context("test"))
+print("="*80)
 
 llm = ChatOpenAI(
     api_key=OPENAI_API_KEY,
@@ -142,7 +146,8 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
         
         # Get relevant context using the RAG retriever
         context_text = get_relevant_context(request.question)
-        
+        print("Context text:")
+        print(context_text)
         if not context_text:
             return {
                 "answer": "I couldn't find any relevant context to answer your question.",
