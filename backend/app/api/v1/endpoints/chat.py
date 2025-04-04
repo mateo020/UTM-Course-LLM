@@ -44,9 +44,12 @@ if not OPENAI_API_KEY:
     raise ValueError("Missing OPENAI_API_KEY")
 
 # Initialize RAG retriever
-retriever = setup_rag([str(DOCUMENTS_DIR / "course_data.txt")])
+retriever = setup_rag([
+    str(DOCUMENTS_DIR / "course_data.txt"),
+    str(DOCUMENTS_DIR / "program_info.txt")
+])
 set_rag_retriever(retriever)
-print("RAG retriever initialized")
+print("RAG retriever initialized with both course data and program info")
 # print(retriever)
 # print(get_relevant_context("test"))
 # print("="*80)
@@ -156,6 +159,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
 
         print(f"[DEBUG] Running multi-hop for question: {request.question}")
         response = multi_hop(request.question)
+        llm.inspect_history(1)
 
         return {
             "answer": response.answer,

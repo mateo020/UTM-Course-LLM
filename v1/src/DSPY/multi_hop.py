@@ -16,7 +16,7 @@ class GenerateAnswer(dspy.Signature):
 
 
 class MultiHop(dspy.Module):
-    def __init__(self, retriever, passages_per_hop=10, max_hops=10):
+    def __init__(self, retriever, passages_per_hop=5, max_hops=5):
         super().__init__()
         self.generate_query = [dspy.ChainOfThought(GenerateQuery) for _ in range(max_hops)]
         self.retriever = retriever
