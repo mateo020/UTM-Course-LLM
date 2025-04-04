@@ -137,7 +137,7 @@ def setup_rag(file_paths: List[str]):
             cleaned_docs = []
             for doc in docs:
                 cleaned_text = " ".join(doc.page_content.split())
-                print(f"Cleaned text: {cleaned_text}")
+            
                 if len(cleaned_text.strip()) > 0:
                     cleaned_docs.append(Document(page_content=cleaned_text))
             all_docs.extend(cleaned_docs)
@@ -145,7 +145,7 @@ def setup_rag(file_paths: List[str]):
         except Exception as e:
             print(f"Error Loading file: {e}")
     #set up rag 
-    print(f"All docs: {all_docs}")
+    
     if all_docs:
         #add documents to retriever
         retriever.add_documents(all_docs)
@@ -171,7 +171,7 @@ def set_rag_retriever(retriever):
     """Set the global RAG retriever instance"""
     global _global_retriever
     _global_retriever = retriever
-    print(f"Retriever set: {retriever is not None}")
+    # print(f"Retriever set: {retriever is not None}")
 
 def get_relevant_context(query: str, k: int =4) -> str:
     """Get relevant context from supplementary files using RAG"""

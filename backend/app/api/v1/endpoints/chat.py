@@ -23,7 +23,7 @@ from langchain_core.runnables import (
     ConfigurableFieldSpec,
     RunnablePassthrough,
 )
-from pydantic import Field
+import dspy
 load_dotenv()
 # Add v1
 root_dir = Path(__file__).resolve().parents[5]
@@ -35,8 +35,9 @@ router = APIRouter()
 #absolute paths 
 ROOT_DIR = Path(__file__).resolve().parents[5] 
 DOCUMENTS_DIR = ROOT_DIR / "v1" / "files"
-
 from v1.src.rag.retriever import setup_rag, set_rag_retriever, get_relevant_context, get_rag_retriever
+from v1.src.DSPY.rag_dspy import RAGRetriever
+from v1.src.DSPY.multi_hop import MultiHop
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
@@ -46,37 +47,43 @@ if not OPENAI_API_KEY:
 retriever = setup_rag([str(DOCUMENTS_DIR / "course_data.txt")])
 set_rag_retriever(retriever)
 print("RAG retriever initialized")
-print(retriever)
-print(get_relevant_context("test"))
-print("="*80)
+# print(retriever)
+# print(get_relevant_context("test"))
+# print("="*80)
 
-llm = ChatOpenAI(
-    api_key=OPENAI_API_KEY,
-    model="gpt-4",
-    temperature=0,
-    streaming=False,
-)
+# llm = ChatOpenAI(
+#     api_key=OPENAI_API_KEY,
+#     model="gpt-4",
+#     temperature=0,
+#     streaming=False,
+# import dspy
 
-class InMemoryHistory(BaseChatMessageHistory, BaseModel):
-    """In memory implementation of chat message history."""
 
-    messages: List[BaseMessage] = Field(default_factory=list)
 
-    def add_messages(self, messages: List[BaseMessage]) -> None:
-        """Add a list of messages to the store"""
-        self.messages.extend(messages)
+llm = dspy.LM('gpt-4o-mini', api_key=os.getenv("OPENAI_API_KEY"))
+print(os.getenv("OPENAI_API_KEY"))
+dspy.configure(lm=llm)
 
-    def clear(self) -> None:
-        self.messages = []
+# class InMemoryHistory(BaseChatMessageHistory, BaseModel):
+#     """In memory implementation of chat message history."""
+
+#     messages: List[BaseMessage] = Field(default_factory=list)
+
+#     def add_messages(self, messages: List[BaseMessage]) -> None:
+#         """Add a list of messages to the store"""
+#         self.messages.extend(messages)
+
+#     def clear(self) -> None:
+#         self.messages = []
 
 store = {}
 
-def get_session_history(
-    user_id: str, conversation_id: str
-) -> BaseChatMessageHistory:
-    if (user_id, conversation_id) not in store:
-        store[(user_id, conversation_id)] = InMemoryHistory()
-    return store[(user_id, conversation_id)]
+# def get_session_history(
+#     user_id: str, conversation_id: str
+# ) -> BaseChatMessageHistory:
+#     if (user_id, conversation_id) not in store:
+#         store[(user_id, conversation_id)] = InMemoryHistory()
+#     return store[(user_id, conversation_id)]
 
 prompt = ChatPromptTemplate.from_messages([
     ("system", "You're an assistant who's good at {ability}"),
@@ -104,30 +111,30 @@ rag_chain = prompt | llm | StrOutputParser()
 
 
 
-with_message_history = RunnableWithMessageHistory(
-    rag_chain,
-    get_session_history=get_session_history,
-    input_messages_key="question",
-    history_messages_key="history",
-    history_factory_config=[
-        ConfigurableFieldSpec(
-            id="user_id",
-            annotation=str,
-            name="User ID",
-            description="Unique identifier for the user.",
-            default="",
-            is_shared=True,
-        ),
-        ConfigurableFieldSpec(
-            id="conversation_id",
-            annotation=str,
-            name="Conversation ID",
-            description="Unique identifier for the conversation.",
-            default="",
-            is_shared=True,
-        ),
-    ],
-)
+# with_message_history = RunnableWithMessageHistory(
+#     rag_chain,
+#     get_session_history=get_session_history,
+#     input_messages_key="question",
+#     history_messages_key="history",
+#     history_factory_config=[
+#         ConfigurableFieldSpec(
+#             id="user_id",
+#             annotation=str,
+#             name="User ID",
+#             description="Unique identifier for the user.",
+#             default="",
+#             is_shared=True,
+#         ),
+#         ConfigurableFieldSpec(
+#             id="conversation_id",
+#             annotation=str,
+#             name="Conversation ID",
+#             description="Unique identifier for the conversation.",
+#             default="",
+#             is_shared=True,
+#         ),
+#     ],
+# )
 
 class ChatRequest(BaseModel):
     question: str
@@ -139,30 +146,24 @@ async def chat_endpoint(request: ChatRequest, http_request: Request):
     try:
         if not request.question:
             raise HTTPException(status_code=400, detail="Question is required.")
-        
-        # Generate or use existing session ID
-        session_id = request.session_id or str(uuid.uuid4())
-        user_id = str(uuid.uuid4())  # In a real app, this would come from authentication
-        
-        # Get relevant context using the RAG retriever
-        context_text = get_relevant_context(request.question)
-        print("Context text:")
-        print(context_text)
-        if not context_text:
-            return {
-                "answer": "I couldn't find any relevant context to answer your question.",
-                "session_id": session_id
-            }
 
-        response = with_message_history.invoke({
-            "context": context_text,
-            "question": request.question
-        }, config={"configurable": {"user_id": user_id, "conversation_id": session_id}})
+        session_id = request.session_id or str(uuid.uuid4())
+        user_id = str(uuid.uuid4())
+
+        rag_retriever = get_rag_retriever()
+        dspy_retriever = RAGRetriever(rag_retriever)
+        multi_hop = MultiHop(dspy_retriever)
+
+        print(f"[DEBUG] Running multi-hop for question: {request.question}")
+        response = multi_hop(request.question)
 
         return {
-            "answer": response,
+            "answer": response.answer,
+            "context": response.context,
             "session_id": session_id
         }
 
     except Exception as e:
+        print(f"[ERROR] Chat endpoint failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
