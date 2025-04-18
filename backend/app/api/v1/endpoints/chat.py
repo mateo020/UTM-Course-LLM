@@ -64,7 +64,7 @@ print("RAG retriever initialized with both course data and program info")
 
 
 llm = dspy.LM('gpt-4o-mini', api_key=os.getenv("OPENAI_API_KEY"))
-print(os.getenv("OPENAI_API_KEY"))
+
 dspy.configure(lm=llm)
 
 # class InMemoryHistory(BaseChatMessageHistory, BaseModel):
