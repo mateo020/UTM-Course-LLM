@@ -2,7 +2,8 @@
 
 An intelligent course exploration system for UTM students, powered by advanced NLP and graph visualization.
 
-![Uploading Screen Recording 2025-04-19 at 4.10.32 PM (4).gif…]()
+![Screen Recording 2025-04-19 at 4 10 32 PM (4)](https://github.com/user-attachments/assets/4ce720bf-74e7-406e-ab66-6aa1d2605b75)
+
 
 
 ## 🌟 Key Features
