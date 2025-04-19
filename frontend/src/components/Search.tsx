@@ -13,18 +13,7 @@ type Result = {
   score: number;
 };
 
-// Fetch data from the /search API
-const fetchSearch = async (userInput: string) => {
-  try {
-    const response = await axios.post("http://localhost:8000/api/v1/search", {
-      query: userInput
-    });
-    return response.data.results || [];
-  } catch (error) {
-    console.error("Error fetching data:", error);
-    return [];
-  }
-};
+// Fetch data from the /search
 
 const SearchBar: React.FC = () => {
   const [query, setQuery] = useState<string>("");
@@ -37,8 +26,10 @@ const SearchBar: React.FC = () => {
 
     setLoading(true);
     try {
-      const response = await axios.post("http://localhost:8000/api/v1/search/search", {
-        query: query.trim()
+      const response = await axios.get("http://localhost:8000/api/v1/search", {
+        params: {
+          query: query.trim()
+        }
       });
       setResults(response.data.results || []);
     } catch (error) {
@@ -143,7 +134,7 @@ const SearchBar: React.FC = () => {
                     </div>
                   </div>
                   <span className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-sm ml-4">
-                    Score: {result.score.toFixed(2)}
+                    {/* Score: {result.score.toFixed(2)} */}
                   </span>
                 </div>
               </div>

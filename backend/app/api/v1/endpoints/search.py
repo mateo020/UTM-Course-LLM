@@ -3,7 +3,7 @@ import bm25s
 from bm25s.hf import BM25HF
 import numpy as np
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from pathlib import Path
 import json
 from typing import List, Dict, Any
@@ -59,45 +59,48 @@ def parse_results(results, scores):
 
 def get_course_info(results):
     course_info = []
-    for result in results:
-        try:
-            with open(DOCUMENTS_DIR / "courses.json", "r") as f:
-                courses = json.load(f)
-                
-            
-            print(results)
+    try:
+        with open(DOCUMENTS_DIR / "courses.json", "r") as f:
+            courses = json.load(f)
+
+        for result in results:
             for course in courses:
                 if course["title"] == result:
                     course_info.append({
                         "course_code": course["course_code"],
                         "title": course["title"],
                         "description": course["description"],
-                        "prerequisites": course["prerequisites"]
+                        "prerequisites": course["prerequisites"],
+                        # Add dummy score if needed for frontend
                     })
                     break
-                    
-            return course_info
-                    
-        except Exception as e:
-            print(f"Error getting course info: {str(e)}")
-            return []
+
+        return course_info
+    except Exception as e:
+        print(f"Error getting course info: {str(e)}")
+        return []
+
 
         
 
 
-@router.post("/search")
-async def search_courses(query: Dict[str, str]):
+@router.get("/search")
+async def search_courses(query: str = Query(..., min_length=1)):
     try:
-        search_query = query.get("query", "").strip()
-        if not search_query:
-            return {"results": []}
+        search_query = query.strip()
+        print(f"Received search query: {search_query}")
 
-        # Get top 10 most relevant results
         results, scores = retriever.retrieve(bm25s.tokenize(search_query), k=10)
         
         parsed_results = parse_results(results, scores)
+        print("Parsed Results:", parsed_results)
+
         course_info = get_course_info(parsed_results)
-        print(course_info)
+        print("Matched Course Info:", course_info)
+
+        return {"results": course_info}
 
     except Exception as e:
+        print("🔥 Search error:", str(e))
         raise HTTPException(status_code=500, detail=f"Search error: {str(e)}")
+

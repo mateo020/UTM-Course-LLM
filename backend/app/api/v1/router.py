@@ -22,6 +22,6 @@ api_router.include_router(
 
 api_router.include_router(
     search.router,
-    prefix="/search",
+    prefix="",
     tags=["search"]
 )
