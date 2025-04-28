@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Graph } from "./Graph";
 import { FaArrowLeft, FaGraduationCap, FaBook, FaClock } from "react-icons/fa";
@@ -11,10 +11,15 @@ type Course = {
   description?: string;
 };
 
+
 const CourseDetail: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const course: Course = location.state as Course;
+  const [mode, setMode] = useState<"core" | "advanced">("core");
+
+  const base = "http://localhost:8000/api/v1";
+  const graphEndpoint = mode === "core" ? "/prereq-graph" : "/prereq-graph-advanced";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50 p-8">
@@ -79,7 +84,29 @@ const CourseDetail: React.FC = () => {
             Course Prerequisites Map
           </h2>
           <div className="h-[600px] w-full bg-gray-50 rounded-lg overflow-hidden">
-            <Graph focusId={course.title} graphUrl="http://localhost:8000/api/v1/prereq-graph" />
+            <Graph focusId={course.title} graphUrl={`${base}${graphEndpoint}`} />
+          </div>
+          <div className="flex justify-end mt-4 space-x-2">
+            <button
+              onClick={() => setMode("core")}
+              className={`px-4 py-2 rounded transition ${
+                mode === "core"
+                  ? "bg-indigo-600 text-white"
+                  : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+              }`}
+            >
+              Core
+            </button>
+            <button
+              onClick={() => setMode("advanced")}
+              className={`px-4 py-2 rounded transition ${
+                mode === "advanced"
+                  ? "bg-indigo-600 text-white"
+                  : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+              }`}
+            >
+              Advanced
+            </button>
           </div>
           <div className="mt-4 text-sm text-gray-600">
             <p>• Blue node: Current course</p>
