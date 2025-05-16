@@ -31,7 +31,7 @@ def compute_files_hash(file_paths: List[str]) -> str:
                     hasher.update(chunk)
         except Exception as e:
             hasher.update(str(e).encode())
-    return hasher.hexdigest
+    return hasher.hexdigest()
 
 def save_rag_cache(file_paths: List[str], vector_store, doc_store):
     """ Save RAG components to cache."""
@@ -41,7 +41,7 @@ def save_rag_cache(file_paths: List[str], vector_store, doc_store):
         vector_store.save_local(str(cache_dir / f"{files_hash}_vectors"))
         with open(cache_dir/f"{files_hash}_docstore.pkl", 'wb') as f: #maps document identifiers - to original content 
             pickle.dump(doc_store,f)
-        with open(cache_dir/ f"{files_hash}_files.text", 'w') as f:
+        with open(cache_dir/ f"{files_hash}_files.txt", 'w') as f:
             f.write("\n".join(file_paths))
     except Exception as e:
         print(f"Error saving RAG cache: {e}")
@@ -57,8 +57,9 @@ def load_rag_cache(file_paths: List[str]) -> tuple:
         files_path = cache_dir / f"{files_hash}_files.txt"
 
         #check if cache exists
-        if not (vector_path.exists() and docstore_path.exists() and file_paths.exist()):
-            return None, None 
+        if not (vector_path.exists() and docstore_path.exists() and files_path.exists()):
+            return None, None
+
 
 
         #validate file paths havent changed
@@ -70,7 +71,11 @@ def load_rag_cache(file_paths: List[str]) -> tuple:
 
         #load vector store
         embeddings = OpenAIEmbeddings(model="text-embedding_ada-002")
-        vector_store = FAISS.load_local(str(vector_path), embeddings)
+        
+        # SET ALLOW DANGEROUS DESERIALIZATION to allow it to work properly
+        # Potenial vulnerability in production
+
+        vector_store = FAISS.load_local( str(vector_path), embeddings, allow_dangerous_deserialization=True)
 
         #load document store with safety flag 
         with open(docstore_path, 'rb') as f:
