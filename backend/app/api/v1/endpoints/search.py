@@ -101,6 +101,6 @@ async def search_courses(query: str = Query(..., min_length=1)):
         return {"results": course_info}
 
     except Exception as e:
-        print("🔥 Search error:", str(e))
+        print(" Search error:", str(e))
         raise HTTPException(status_code=500, detail=f"Search error: {str(e)}")
 

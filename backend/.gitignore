@@ -1,2 +1,3 @@
-backend/venv
-backemd/cache
+backend/venv/
+backend/cache/
+backend/env/
