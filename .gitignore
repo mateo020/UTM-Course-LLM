@@ -9,6 +9,9 @@ lerna-debug.log*
 # In root .gitignore
 **/node_modules/
 backend/venv
+backend/env/
+backend/cache/
+
 
 node_modules
 dist
