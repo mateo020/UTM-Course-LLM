@@ -15,6 +15,7 @@ class CourseRecommendation(BaseModel):
 
 @router.post("/recommend", response_model=List[CourseRecommendation])
 def get_recommendations(request: RecommendationRequest):
+    recommender = CourseRecommender()
     """Get top-k recommended courses for a given course ID."""
     recommendations = recommender.get_similar_courses(
         course_id=request.course_id,
