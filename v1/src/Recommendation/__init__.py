@@ -1,3 +1,3 @@
-from .recSys import CourseRecommender, recommender
+from .recSys import CourseRecommender
 
-__all__ = ['CourseRecommender', 'recommender']
+__all__ = ['CourseRecommender']

@@ -2,6 +2,7 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import chat
 from app.api.v1.endpoints import search
 from app.api.v1.endpoints import graph
+from app.api.v1.endpoints import recommender
 api_router = APIRouter()
 
 print("Registering routes...")
@@ -24,6 +25,12 @@ api_router.include_router(
     search.router,
     prefix="",
     tags=["search"]
+)
+
+api_router.include_router(
+    recommender.router,
+    prefix="",
+    tags=["recommend"]
 )
 
 api_router.include_router(

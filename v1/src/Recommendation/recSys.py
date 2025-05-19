@@ -92,13 +92,12 @@ def generate_hybrid_embedding_matrix(
     for key in list(course_embeddings.keys()):
         if key not in embeddings_dict:
             course_embeddings.pop(key, None)
-    common_keys = list(set(embeddings_dict.keys()) & set(course_embeddings.keys()))
-    
+
     node2vec_matrix = np.array(list(course_embeddings.values()))
-    semantic_matrix = np.array([embeddings_dict[course] for course in common_keys])
+    semantic_embeddings = np.array(list(embeddings_dict.values()))
 
 
-    hybrid_matrix = alpha * semantic_matrix + (1-alpha) * node2vec_matrix
+    hybrid_matrix = alpha * semantic_embeddings + (1-alpha) * node2vec_matrix
     return hybrid_matrix
 
 def get_similar_courses(course_id: str, hybrid_embeddings: Dict[str, np.ndarray],
@@ -144,6 +143,6 @@ class CourseRecommender:
     def get_similar_courses(self, course_id: str, top_k: int = 9) -> List[Tuple[str, float]]:
         return get_similar_courses(course_id, self.hybrid_embeddings, self.hybrid_matrix_normalized, top_k)
 
-if __name__ == "__main__":
-    recommender = CourseRecommender()
-    print(recommender.get_similar_courses("CSC108H5"))
+# if __name__ == "__main__":
+#     recommender = CourseRecommender()
+#     print(recommender.get_similar_courses("CSC108H5"))

@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Graph } from "./Graph";
 import { FaArrowLeft, FaGraduationCap, FaBook, FaClock } from "react-icons/fa";
+import { RecommendedCarousel } from "./RecommendedCarousel";
+
 
 type Course = {
   course_code: string;
@@ -115,6 +117,12 @@ const CourseDetail: React.FC = () => {
           </div>
         </div>
       </div>
+
+      <RecommendedCarousel
+        courseId={course.title ?? "UNKNOWN_COURSE"}
+        apiUrl={`${base}/recommend`}
+      />
+
     </div>
   );
 };
