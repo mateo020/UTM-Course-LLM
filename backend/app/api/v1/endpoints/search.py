@@ -71,7 +71,7 @@ def get_course_info(results):
                         "title": course["title"],
                         "description": course["description"],
                         "prerequisites": course["prerequisites"],
-                        # Add dummy score if needed for frontend
+                        
                     })
                     break
 
