@@ -3,7 +3,7 @@
 from fastapi import APIRouter, HTTPException
 from pathlib import Path
 import json
-
+from typing import Set, Optional
 router = APIRouter()
 
 ROOT_DIR = Path(__file__).resolve().parents[5]
@@ -22,7 +22,7 @@ for link in full_graph["links"]:
 
 @router.get("/prereq-graph-advanced/{course_id}")
 def get_subgraph(course_id: str):
-    def find_ancestors(course_id: str, visited: set[str] | None = None) -> set[str]:
+    def find_ancestors(course_id: str, visited: Optional[Set[str]] = None) -> Set[str]:
         if visited is None:
             visited = set()
         for parent in rev_adj.get(course_id, []):
