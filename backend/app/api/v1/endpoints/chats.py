@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, Depends
 from datetime import datetime
 from typing import List, Dict, Any
-from app.schemas.project import ProjectResponse, ProjectCreate
-from app.services.projects import ProjectService
+# from app.schemas.project import ProjectResponse, ProjectCreate
+# from app.services.projects import ProjectService
 from pydantic import BaseModel
 
 router = APIRouter()

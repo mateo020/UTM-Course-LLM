@@ -3,7 +3,7 @@ import re
 import logging
 from pathlib import Path
 from typing import Dict, List, Tuple, Any
-
+import pickle
 import numpy as np
 import networkx as nx
 from sklearn.metrics.pairwise import cosine_similarity
@@ -65,24 +65,37 @@ def build_prereq_dict(courses: List[Dict[str, Any]]) -> Dict[str, List[Tuple[str
         prereq_dict[code] = prereqs
     return prereq_dict
 
-def generate_prerequisite_graph_embeddings(prerequisites: Dict[str, List[Tuple[str, str]]],
-                                           dimensions: int = 1536,
-                                           walk_length: int = 10,
-                                           num_walks: int = 100,
-                                           p: float = 1,
-                                           q: float = 4) -> Tuple[nx.DiGraph, Any]:
-    G = nx.DiGraph()
-    for course, prereqs in prerequisites.items():
-        for prereq in prereqs:
-            G.add_edge(prereq[0], prereq[1])
-    G.add_nodes_from(prerequisites.keys())
+# def generate_prerequisite_graph_embeddings(prerequisites: Dict[str, List[Tuple[str, str]]],
+#                                            dimensions: int = 1536,
+#                                            walk_length: int = 10,
+#                                            num_walks: int = 100,
+#                                            p: float = 1,
+#                                            q: float = 4) -> Tuple[nx.DiGraph, Any]:
+#     G = nx.DiGraph()
+#     for course, prereqs in prerequisites.items():
+#         for prereq in prereqs:
+#             G.add_edge(prereq[0], prereq[1])
+#     G.add_nodes_from(prerequisites.keys())
 
-    node2vec = Node2Vec(G, dimensions=dimensions, walk_length=walk_length,
-                        num_walks=num_walks, p=p, q=q, workers=2, seed=42)
-    model = node2vec.fit(window=5, min_count=1)
-    course_embeddings = {course: model.wv[course] for course in G.nodes()}
+#     node2vec = Node2Vec(G, dimensions=dimensions, walk_length=walk_length,
+#                         num_walks=num_walks, p=p, q=q, workers=2, seed=42)
+#     model = node2vec.fit(window=5, min_count=1)
+#     course_embeddings = {course: model.wv[course].tolist() for course in G.nodes()}
     
-    return G, model, course_embeddings
+#     data_path = DOCUMENTS_DIR / "course_embeddings.word2vec.json"
+#     with open(data_path, "w") as f:
+#         json.dump(course_embeddings, f)
+    
+#     return G, model, course_embeddings
+
+
+def load_course_word2vec():
+    data_path = DOCUMENTS_DIR / "course_embeddings.json"
+    with open(data_path, "r") as f:
+        raw = json.load(f)
+    course_embeddings = {course: np.array(vec, dtype=np.float32) for course, vec in raw.items()}
+    return course_embeddings
+
 
 def generate_hybrid_embedding_matrix(
     embeddings_dict: Dict[str, np.ndarray],
@@ -130,8 +143,7 @@ class CourseRecommender:
         self.embeddings_dict = load_cached_embeddings()
         self.courses_json = load_course_json()
         self.prerequisites = build_prereq_dict(self.courses_json)
-        self.G, self.model, self.course_embeddings = generate_prerequisite_graph_embeddings(self.prerequisites, self.dimensions,
-                                                                    self.walk_length, self.num_walks, self.p, self.q)
+        self.course_embeddings = load_course_word2vec()
         self.hybrid_matrix = generate_hybrid_embedding_matrix(self.embeddings_dict, self.course_embeddings, self.alpha)
         self.hybrid_matrix_normalized = normalize(self.hybrid_matrix, norm='l2')
         self.hybrid_embeddings = {
@@ -143,6 +155,6 @@ class CourseRecommender:
     def get_similar_courses(self, course_id: str, top_k: int = 9) -> List[Tuple[str, float]]:
         return get_similar_courses(course_id, self.hybrid_embeddings, self.hybrid_matrix_normalized, top_k)
 
-# if __name__ == "__main__":
-#     recommender = CourseRecommender()
-#     print(recommender.get_similar_courses("CSC108H5"))
+if __name__ == "__main__":
+    recommender = CourseRecommender()
+    print(recommender.get_similar_courses("CSC108H5"))

@@ -119,7 +119,8 @@ const CourseDetail: React.FC = () => {
       </div>
 
       <RecommendedCarousel
-        courseId={course.title ?? "UNKNOWN_COURSE"}
+        courseName={course.course_code}
+        courseId={course.title}
         apiUrl={`${base}/recommend`}
       />
 

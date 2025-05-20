@@ -47,7 +47,7 @@ const SearchBar: React.FC = () => {
   };
 
   const handleCardClick = (course: Result) => {
-    navigate(`/course/${course.course_code}`, { state: course });
+    navigate(`/course/${course.title}`, { state: course });
   };
 
   return (

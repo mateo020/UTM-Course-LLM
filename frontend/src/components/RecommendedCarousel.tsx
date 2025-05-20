@@ -1,5 +1,5 @@
-// components/RecommendedCarousel.tsx
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 interface Recommendation {
   course_id: string;
@@ -7,12 +7,14 @@ interface Recommendation {
 }
 
 interface Props {
-  courseId: string;
+  courseId: string | undefined;
+  courseName: string;
   apiUrl: string;
 }
 
 export const RecommendedCarousel: React.FC<Props> = ({ courseId, apiUrl }) => {
   const [courses, setCourses] = useState<Recommendation[]>([]);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchRecommendations = async () => {
@@ -36,17 +38,28 @@ export const RecommendedCarousel: React.FC<Props> = ({ courseId, apiUrl }) => {
     fetchRecommendations();
   }, [courseId, apiUrl]);
 
+  const handleClick = (courseId: string) => {
+    navigate(`/course/${courseId}`, { state: courseId });
+  };
+
   return (
     <div className="mt-10">
-      <h3 className="text-xl font-semibold text-indigo-800 mb-4">Recommended Courses</h3>
-      <div className="flex overflow-x-auto space-x-4 scrollbar-hide">
+      <h3 className="text-2xl font-semibold text-indigo-800 mb-4">Recommended Courses</h3>
+      <div className="flex overflow-x-auto space-x-6 scrollbar-hide">
         {courses.map((course, index) => (
           <div
             key={index}
-            className="min-w-[200px] bg-white shadow rounded-lg p-4 hover:shadow-md transition"
+            onClick={() => handleClick(course.course_id)}
+            className="min-w-[280px] h-[180px] bg-white shadow-lg rounded-2xl p-6 
+                       hover:shadow-xl cursor-pointer transition-transform transform hover:scale-105"
           >
-            <h4 className="font-bold text-indigo-700">{course.course_id}</h4>
-            <p className="text-sm text-gray-600">Similarity: {course.similarity.toFixed(2)}</p>
+            <h4 className="text-xl font-bold text-indigo-700 mb-2">
+              {course.course_id}
+            </h4>
+            <p className="text-gray-600 text-sm">Similarity score</p>
+            <p className="text-indigo-500 font-semibold text-lg">
+              {course.similarity.toFixed(2)}
+            </p>
           </div>
         ))}
       </div>
