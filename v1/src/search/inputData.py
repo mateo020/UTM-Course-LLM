@@ -8,7 +8,10 @@ from google.cloud import storage
 import sys
 from pathlib import Path
 from datetime import datetime
-from vertexai.preview.language_models import TextEmbeddingModel
+# from vertexai.preview.language_models import TextEmbeddingModel
+from sentence_transformers import SentenceTransformer
+EMBED_MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"  # or BGE
+model = SentenceTransformer(EMBED_MODEL_ID) 
 UID = datetime.now().strftime("%m%d%H%M")
 
 PROJECT_ID = "hybrid-search"
@@ -20,12 +23,12 @@ DOCUMENTS_DIR = ROOT_DIR / "v1" / "files"
 data_path = str(DOCUMENTS_DIR / "courses.json") 
 
 
-model = TextEmbeddingModel.from_pretrained("text-embedding-005")
+# model = TextEmbeddingModel.from_pretrained("text-embedding-005")
 
 
 # wrapper
 def get_dense_embedding(text):
-    return model.get_embeddings([text])[0].values
+    return model.encode(text, normalize_embeddings=True).tolist()
 
 
 def create_bucket(bucket_name):
@@ -35,7 +38,7 @@ def create_bucket(bucket_name):
     storage_client = storage.Client()
 
     bucket = storage_client.create_bucket(bucket_name)
-
+    print("create bucket ??")
     print(f"Bucket {bucket.name} created")
 
 
@@ -105,7 +108,7 @@ def get_sparse_embedding(text):
 # create bucket
 BUCKET_NAME = f"{PROJECT_ID}-vs-hybridsearch-{UID}"
 
-create_bucket(BUCKET_NAME)
+# create_bucket(BUCKET_NAME)
 
 
 
@@ -136,4 +139,4 @@ with open(output, "w", encoding="utf-8") as f:
 
 output_path = Path(DOCUMENTS_DIR) / "items.json"
 
-upload_blob(BUCKET_NAME,output_path, "items.json")
+# upload_blob(BUCKET_NAME,output_path, "items.json")
