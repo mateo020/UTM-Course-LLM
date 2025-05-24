@@ -20,55 +20,59 @@ type GraphProps = {
   graphUrl: string;
 };
 
-const H_GAP = 200; // horizontal gap between columns
+const H_GAP = 200;   /* horizontal distance between columns  */
+const V_GAP = 70;    /* vertical distance between rows      */
 
 export const Graph: React.FC<GraphProps> = ({ focusId, graphUrl }) => {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  // helper to build lookup
+  /* highlight‑selection state */
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [ancestors, setAncestors] = useState<Set<string>>(new Set());
+  const [descendants, setDescendants] = useState<Set<string>>(new Set());
+
   const id2node = (arr: Node[]) => Object.fromEntries(arr.map(n => [n.id, n]));
 
-  /* ---------- load & position graph ---------- */
+  /* --------------- fetch + deterministic layout --------------- */
   useEffect(() => {
     if (!focusId) return;
 
-    const fetchGraphData = async () => {
+    (async () => {
       try {
         const { data } = await axios.get(`${graphUrl}/${focusId}`);
         const rawNodes: Node[] = data.nodes.map((n: any) => ({ ...n, label: n.id }));
         const rawEdges: Edge[] = data.links || [];
 
-        /* ---- BFS-style positioning ---- */
         const dict = id2node(rawNodes);
-        const queue: string[] = [focusId];
-        dict[focusId].fx = 0; // centre
+        const nextRowForX: Record<number, number> = { 0: 0 }; // track y‑offset per column
+
+        const enqueue = (id: string, x: number) => {
+          const n = dict[id];
+          if (n && n.fx === undefined) {
+            n.fx = x;
+            n.fy = nextRowForX[x] ?? 0;
+            nextRowForX[x] = (nextRowForX[x] ?? 0) + V_GAP;
+            queue.push(id);
+          }
+        };
+
+        /* BFS walk setting deterministic positions */
+        const queue: string[] = [];
+        dict[focusId].fx = 0;
         dict[focusId].fy = 0;
+        queue.push(focusId);
 
         while (queue.length) {
-          const currentId = queue.shift()!;
-          const cur = dict[currentId];
+          const curId = queue.shift()!;
+          const curX  = dict[curId].fx ?? 0;
 
-          // outgoing: current -> child  => place child to the right
-          rawEdges.filter(e => e.source === currentId).forEach(e => {
-            const child = dict[e.target];
-            if (child && child.fx === undefined) {
-              child.fx = (cur.fx ?? 0) + H_GAP;
-              child.fy = (Math.random() - 0.5) * 400;
-              queue.push(child.id);
-            }
-          });
+          // outgoing children  -> right column
+          rawEdges.filter(e => e.source === curId).forEach(e => enqueue(e.target as string, curX + H_GAP));
 
-          // incoming: parent -> current  => place parent to the left
-          rawEdges.filter(e => e.target === currentId).forEach(e => {
-            const parent = dict[e.source];
-            if (parent && parent.fx === undefined) {
-              parent.fx = (cur.fx ?? 0) - H_GAP;
-              parent.fy = (Math.random() - 0.5) * 400;
-              queue.push(parent.id);
-            }
-          });
+          // incoming parents   -> left column
+          rawEdges.filter(e => e.target === curId).forEach(e => enqueue(e.source as string, curX - H_GAP));
         }
 
         setNodes(rawNodes);
@@ -76,13 +80,52 @@ export const Graph: React.FC<GraphProps> = ({ focusId, graphUrl }) => {
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Unexpected error');
       }
-    };
-
-    fetchGraphData();
+    })();
   }, [focusId, graphUrl]);
+
+  /* derive highlight sets when user clicks */
+  useEffect(() => {
+    if (!selectedId) { setAncestors(new Set()); setDescendants(new Set()); return; }
+
+    const up = new Set<string>();
+    const down = new Set<string>();
+    const upStack   = [selectedId];
+    const downStack = [selectedId];
+
+    while (upStack.length) {
+      const cur = upStack.pop()!;
+      edges.filter(e => e.target === cur).forEach(e => { if (!up.has(e.source)) { up.add(e.source); upStack.push(e.source); } });
+    }
+    while (downStack.length) {
+      const cur = downStack.pop()!;
+      edges.filter(e => e.source === cur).forEach(e => { if (!down.has(e.target)) { down.add(e.target); downStack.push(e.target); } });
+    }
+    setAncestors(up); setDescendants(down);
+  }, [selectedId, edges]);
 
   if (error) return <div className="text-red-600 p-4">Error: {error}</div>;
   if (nodes.length === 0) return <div className="text-gray-600 p-4">Loading…</div>;
+
+  /* ------------- colour + width helpers ------------- */
+  const nodeFill = (n: Node) => {
+    if (!selectedId) return n.id === focusId ? '#4F46E5' : '#60A5FA';
+    if (n.id === selectedId) return '#ef4444';
+    if (ancestors.has(n.id)) return '#0ea5e9';
+    if (descendants.has(n.id)) return '#4F46E5';
+    return '#d1d5db';
+  };
+
+  const linkFill = (l: Edge) => {
+    const s = typeof l.source === 'object' ? (l.source as any).id : l.source;
+    const t = typeof l.target === 'object' ? (l.target as any).id : l.target;
+    if (!selectedId) return s === focusId ? '#4F46E5' : '#94A3B8';
+    if (s === selectedId || t === selectedId) return '#ef4444';
+    if (ancestors.has(s) && ancestors.has(t)) return '#0ea5e9';
+    if (descendants.has(s) && descendants.has(t)) return '#4F46E5';
+    return '#d1d5db';
+  };
+
+  const linkWidth = (l: Edge) => (linkFill(l) === '#d1d5db' ? 1 : 3);
 
   return (
     <div className="graph-container">
@@ -93,21 +136,21 @@ export const Graph: React.FC<GraphProps> = ({ focusId, graphUrl }) => {
         height={600}
         nodeLabel="label"
         linkLabel="label"
-        nodeColor={n => (n.id === focusId ? '#4F46E5' : '#60A5FA')}
-        // outgoing edges (where source is the node) => dark blue, incoming => gray
-        linkColor={l => (l.source === focusId || (typeof l.source === 'object' && (l.source as Node).id === focusId) ? '#4F46E5' : '#94A3B8')}
+        nodeColor={nodeFill}
+        linkColor={linkFill}
         nodeRelSize={6}
-        linkWidth={2}
+        linkWidth={linkWidth}
         linkDirectionalArrowLength={3.5}
         linkDirectionalArrowRelPos={1}
         linkCurvature={0.25}
         linkDirectionalParticles={2}
         linkDirectionalParticleSpeed={0.004}
+        onNodeClick={(n: any) => setSelectedId(prev => (prev === n.id ? null : n.id))}
         nodeCanvasObject={(node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
           const label = node.label;
           const fontSize = 12 / globalScale;
           ctx.font = `${fontSize}px Sans-Serif`;
-          ctx.fillStyle = node.id === focusId ? '#4F46E5' : '#60A5FA';
+          ctx.fillStyle = nodeFill(node);
           ctx.beginPath();
           ctx.arc(node.x, node.y, 5, 0, 2 * Math.PI);
           ctx.fill();
@@ -116,9 +159,13 @@ export const Graph: React.FC<GraphProps> = ({ focusId, graphUrl }) => {
           ctx.fillText(label, node.x, node.y + 10);
         }}
       />
-      <div className="graph-legend">
-        <p>Nodes: {nodes.length}</p>
-        <p>Edges: {edges.length}</p>
+      <div className="graph-legend mt-2 text-sm">
+        <p>Nodes: {nodes.length} • Edges: {edges.length}</p>
+        {selectedId && (
+          <p>
+            Selected <span className="font-semibold">{selectedId}</span> — Ancestors: {ancestors.size} • Descendants: {descendants.size}
+          </p>
+        )}
       </div>
     </div>
   );
