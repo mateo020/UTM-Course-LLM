@@ -5,7 +5,7 @@ import json
 from typing import List, Dict, Any, Tuple
 import sys
 
-# 👉 import the function, not a (non-existent) class
+
 from v1.src.search.hybrid_search import hybrid_search
 
 router = APIRouter()
