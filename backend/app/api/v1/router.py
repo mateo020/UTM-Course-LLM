@@ -3,6 +3,7 @@ from app.api.v1.endpoints import chat
 from app.api.v1.endpoints import search
 from app.api.v1.endpoints import graph
 from app.api.v1.endpoints import recommender
+from app.api.v1.endpoints import suggestions
 api_router = APIRouter()
 
 print("Registering routes...")
@@ -37,4 +38,9 @@ api_router.include_router(
     graph.router,
     prefix="",
     tags=["graph"]
+)
+api_router.include_router(
+    suggestions.router,
+    prefix="",
+    tags=["suggestions"]
 )

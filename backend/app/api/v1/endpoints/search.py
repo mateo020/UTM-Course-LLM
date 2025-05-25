@@ -15,7 +15,7 @@ root_dir = Path(__file__).resolve().parents[5]
 sys.path.append(str(root_dir))
 sys.path.append(str(root_dir / 'v1'))
 sys.path.append(str(root_dir / 'v1' / 'src'))
-router = APIRouter()
+
 
 #absolute paths 
 ROOT_DIR = Path(__file__).resolve().parents[5] 

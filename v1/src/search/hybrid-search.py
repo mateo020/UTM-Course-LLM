@@ -50,7 +50,7 @@ def hybrid_search(
     top_k_sparse=20,
     w_dense=0.6,
     w_sparse=0.4,
-    use_rrf=False,
+    use_rrf=True,
 ):
     # -------- dense scores --------
     qd = embed_query_dense(query)
@@ -89,5 +89,5 @@ def hybrid_search(
 
     fused.sort(key=lambda x: x[1], reverse=True)
     return [(df.iloc[i]["id"], score) for i, score in fused[:10]]
-for cid, score in hybrid_search("csc148"):
+for cid, score in hybrid_search("data science"):
     print(f"{score:0.3f}", cid)
