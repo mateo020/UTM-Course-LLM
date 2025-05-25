@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { FaSearch, FaSpinner, FaGraduationCap } from 'react-icons/fa';
@@ -19,7 +19,53 @@ const SearchBar: React.FC = () => {
   const [query, setQuery] = useState<string>("");
   const [results, setResults] = useState<Result[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
+  const [selectedIndex, setSelectedIndex] = useState<number>(-1);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+
+  // Fetch suggestions as user types
+  useEffect(() => {
+    const fetchSuggestions = async () => {
+      if (query.trim().length > 0) {
+        try {
+          console.log("Fetching suggestions for:", query.trim());  // Debug log
+          const response = await axios.get("http://localhost:8000/api/v1/suggestions", {
+            params: {
+              q: query.trim(),
+              k: 5
+            }
+          });
+          console.log("Suggestions response:", response.data);  // Debug log
+          setSuggestions(response.data);
+          setShowSuggestions(true);
+          setSelectedIndex(-1);
+        } catch (error) {
+          console.error("Error fetching suggestions:", error);
+          setSuggestions([]);
+        }
+      } else {
+        setSuggestions([]);
+        setShowSuggestions(false);
+      }
+    };
+
+    const debounceTimer = setTimeout(fetchSuggestions, 300);
+    return () => clearTimeout(debounceTimer);
+  }, [query]);
+
+  // Handle clicks outside suggestions dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleSearch = async () => {
     if (!query.trim()) return;
@@ -42,7 +88,44 @@ const SearchBar: React.FC = () => {
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
-      handleSearch();
+      if (selectedIndex >= 0 && suggestions[selectedIndex]) {
+        handleSuggestionClick(suggestions[selectedIndex]);
+      } else {
+        handleSearch();
+      }
+      setShowSuggestions(false);
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedIndex(prev => 
+        prev < suggestions.length - 1 ? prev + 1 : prev
+      );
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedIndex(prev => prev > -1 ? prev - 1 : -1);
+    } else if (e.key === 'Escape') {
+      setShowSuggestions(false);
+    }
+  };
+
+  const handleSuggestionClick = async (suggestion: string) => {
+    setQuery(suggestion);
+    setShowSuggestions(false);
+    setLoading(true);
+    
+    try {
+      const response = await axios.get("http://localhost:8000/api/v1/search", {
+        params: {
+          query: suggestion
+        }
+      });
+      
+      if (response.data.results && response.data.results.length > 0) {
+        handleCardClick(response.data.results[0]);
+      }
+    } catch (error) {
+      console.error("Error searching for suggestion:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -60,13 +143,14 @@ const SearchBar: React.FC = () => {
           </Link>
         </div>
 
-        <div className="relative mb-8">
+        <div className="relative mb-8" ref={suggestionsRef}>
           <div className="relative">
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}
+              onFocus={() => query.trim() && setShowSuggestions(true)}
               placeholder="Search by course code, title, or keyword..."
               className="w-full pl-12 pr-4 py-3 rounded-xl border-2 border-indigo-200 
                          focus:ring-2 focus:ring-indigo-500 focus:border-indigo-300 
@@ -76,6 +160,26 @@ const SearchBar: React.FC = () => {
             />
             <FaSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-indigo-400" />
           </div>
+
+          {/* Suggestions Dropdown */}
+          {showSuggestions && suggestions.length > 0 && (
+            <div className="absolute w-full mt-1 bg-white rounded-xl shadow-lg border border-indigo-100 z-10 max-h-60 overflow-y-auto">
+              {suggestions.map((suggestion, index) => (
+                <div
+                  key={index}
+                  onClick={() => handleSuggestionClick(suggestion)}
+                  className={`px-4 py-3 cursor-pointer transition-colors duration-150
+                           first:rounded-t-xl last:rounded-b-xl
+                           ${index === selectedIndex ? 'bg-indigo-100' : 'hover:bg-indigo-50'}`}
+                >
+                  <div className="flex items-center gap-2">
+                    <FaGraduationCap className="text-indigo-400" />
+                    <span className="text-indigo-900">{suggestion}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <button

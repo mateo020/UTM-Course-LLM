@@ -3,8 +3,7 @@ from fastapi import APIRouter, Query, HTTPException
 from typing import List
 from pathlib import Path
 import json
-
-from v1.src.search.autocomplete import autocomplete   # <-- your Trie wrapper
+from v1.src.search.autocomplete import autocomplete
 
 router = APIRouter()
 
@@ -17,7 +16,9 @@ def get_suggestions(
     Return up to *k* autocomplete suggestions that start with the prefix *q*.
     """
     try:
-        suggestions = autocomplete(q)[:k]             # truncate to k
+        suggestions = autocomplete(q)[:k]   
+        print(f"Query: {q}, Suggestions: {suggestions}")  # Debug print
         return suggestions
     except Exception as e:
+        print(f"Error in suggestions endpoint: {str(e)}")  # Debug print
         raise HTTPException(status_code=500, detail=str(e))

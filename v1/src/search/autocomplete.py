@@ -1,49 +1,65 @@
-class TrieNode():
-    def __init__(self):
-        self.children = {}
-        self.last = False
+import json 
+from pathlib import Path
+from typing import Dict, List, Tuple, Any
+import sys
+import os
 
-class Trie():
-    def __init__(self):
-        self.root = TrieNode()
+# Add the parent directory to sys.path to allow absolute imports
+current_dir = Path(__file__).resolve().parent
+parent_dir = current_dir.parent
+sys.path.append(str(parent_dir))
 
-    def formTrie(self, keys):
-        for key in keys:
-            self.insert(key)
-    
-    def insert(self,key):
-        cur = self.root
-        for char in key:
-            if not cur.children.get(char):
-                cur.children[char] = TrieNode()
-            cur = cur.children[char]
-        cur.last = True
-    
-    def suggestionsRec(self, node, word, words):
+from search.trie import Trie
 
-        # Method to recursively traverse the trie
-        # and return a whole word.
-        
-        if node.last:
-            if not None:
-                words.append(word)
+# Get the absolute path to the v1 directory
+V1_DIR = Path(__file__).resolve().parents[3] / "v1"
+DOCUMENTS_DIR = V1_DIR / "files"
 
-        for a, n in node.children.items():
-            self.suggestionsRec(n, word + a,words)
-        
-        
+def load_course_json() -> List[Dict[str, Any]]:
+    """Load course data from the JSON file."""
+    data_path = str(DOCUMENTS_DIR / "courses.json")
+    print(f"Loading course data from: {data_path}")
+    try:
+        with open(data_path, 'r') as f:
+            data = json.load(f)
+            print(f"Successfully loaded {len(data)} courses")
+            return data
+    except Exception as e:
+        print(f"Error loading course data: {str(e)}")
+        return []
 
-    def autocomplete(self, prefix):
-        node = self.root
-        for ch in prefix:
-            if ch not in node.children:
-                return []
-            node = node.children[ch]
+# Build list of entries and mapping
+course_data = load_course_json()
+entry_map: Dict[str, str] = {}
+entries: List[str] = []
+for course in course_data:
+    code = course.get('course_code', '')
+    title = course.get('title', '')
+    if code:
+        entries.append(code.lower())
+        entry_map[code.lower()] = code
+    if title:
+        entries.append(title.lower())
+        entry_map[title.lower()] = title
 
-        results = []
-        self.suggestionsRec(node, prefix, results)
-        return results
-    
+print(f"Prepared {len(entries)} entries for Trie (codes + titles)")
 
-    
+# Initialize Trie
+_trie = None
+
+def get_trie() -> Trie:
+    global _trie
+    if _trie is None:
+        print("Initializing Trie with course codes and titles")
+        _trie = Trie()
+        _trie.formTrie(entries)
+        print("Trie initialization complete")
+    return _trie
+
+def autocomplete(prefix: str) -> List[str]:
+    prefix_lower = prefix.lower()
+    trie = get_trie()
+    results_lower = trie.autocomplete(prefix_lower)
+    results_original: List[str] = [entry_map[r] for r in results_lower]
+    return results_original
 

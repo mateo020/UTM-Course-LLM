@@ -11,7 +11,7 @@ lerna-debug.log*
 backend/venv
 backend/env/
 backend/cache/
-
+backend/rec.ipynb
 
 node_modules
 dist
