@@ -65,28 +65,7 @@ def build_prereq_dict(courses: List[Dict[str, Any]]) -> Dict[str, List[Tuple[str
         prereq_dict[code] = prereqs
     return prereq_dict
 
-# def generate_prerequisite_graph_embeddings(prerequisites: Dict[str, List[Tuple[str, str]]],
-#                                            dimensions: int = 1536,
-#                                            walk_length: int = 10,
-#                                            num_walks: int = 100,
-#                                            p: float = 1,
-#                                            q: float = 4) -> Tuple[nx.DiGraph, Any]:
-#     G = nx.DiGraph()
-#     for course, prereqs in prerequisites.items():
-#         for prereq in prereqs:
-#             G.add_edge(prereq[0], prereq[1])
-#     G.add_nodes_from(prerequisites.keys())
 
-#     node2vec = Node2Vec(G, dimensions=dimensions, walk_length=walk_length,
-#                         num_walks=num_walks, p=p, q=q, workers=2, seed=42)
-#     model = node2vec.fit(window=5, min_count=1)
-#     course_embeddings = {course: model.wv[course].tolist() for course in G.nodes()}
-    
-#     data_path = DOCUMENTS_DIR / "course_embeddings.word2vec.json"
-#     with open(data_path, "w") as f:
-#         json.dump(course_embeddings, f)
-    
-#     return G, model, course_embeddings
 
 
 def load_course_word2vec():

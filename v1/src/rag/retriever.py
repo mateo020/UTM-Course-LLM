@@ -70,10 +70,9 @@ def load_rag_cache(file_paths: List[str]) -> tuple:
             return None, None
 
         #load vector store
-        embeddings = OpenAIEmbeddings(model="text-embedding_ada-002")
+        embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
         
-        # SET ALLOW DANGEROUS DESERIALIZATION to allow it to work properly
-        # Potenial vulnerability in production
+      
 
         vector_store = FAISS.load_local( str(vector_path), embeddings, allow_dangerous_deserialization=True)
 
@@ -121,7 +120,7 @@ def setup_rag(file_paths: List[str]):
         chunk_overlap=500,
         separators=[":","\n\n"],
     )
-    embeddings = OpenAIEmbeddings(model="text-embedding-ada-002")
+    embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
     vector_store = FAISS.from_texts(["placeholder"], embeddings)
     doc_store = InMemoryStore()
 
