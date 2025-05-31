@@ -5,25 +5,43 @@ import openai
 import ollama
 import networkx as nx
 import json
+from pathlib import Path
 from networkx.readwrite import json_graph
+from langchain_core.documents import Document
+from tqdm import tqdm
+
 client = openai.AsyncOpenAI()  # Optionally: api_key="YOUR_API_KEY"
 
 embedding_function = OllamaEmbeddings(model="nomic-embed-text")
-db = Chroma(persist_directory="path/to/chroma_db", embedding_function=embedding_function)
+
+
+
+ROOT_DIR = Path(__file__).resolve().parents[2]
+
+DOCUMENTS_DIR = ROOT_DIR / "files"
+
+
+def load_embeddings(persist_dir="chroma_db"):
+    embeddings = OllamaEmbeddings(model="nomic-embed-text")
+    db = Chroma(embedding_function=embeddings, persist_directory=str(persist_dir))  # <-- convert to str
+    print(f"[INFO] Vector DB loaded from {persist_dir}")
+    return db
 
 # load knowledge graph
 G = nx.Graph()
-with open("graph.json", "r") as f:
+with open(DOCUMENTS_DIR / "graph.json", "r") as f:
     G_data = json.load(f)
     G = json_graph.node_link_graph(G_data)
+
+
 
 PREDICTION_PROMPT = '''
 You are an helpful Question Answering AI assistant based on the relevant context provided.
 In the context, you are provide informations of some text chunks. Along with that you are also provided information about nodes, relationships and community summaries of the nodes extracted from a relevant portion of knowledge graph according to the question asked. The information is provided in the below format:
 CHUNK TEXT: Text chunks provided 
-\n\nNODES : Information about nodes having "id" and "node description" 
-\n\nRELATIONSHIPS : Relationpships between the nodes contating "start" and "end" node along with their relationship as "description" 
-\n\nCUMMUNITY SUMMARIES: Community summaries of the nodes in a list.
+\n\nNODES : Information about nodes having "id" and "node description" and "prerequisites" 
+\n\nRELATIONSHIPS : Relationpships between the nodes contating "start" and "end". Start node is a prerequisite of End node.
+\n\nCUMMUNITY SUMMARIES: Community summaries of the nodes in a list, similar courses.
 
 #########################################################
 Answer the question based on the above context provided and predict the most relevant answer.
@@ -35,48 +53,52 @@ Question: {question}
 Answer:
 '''
 async def main():
-    query = '''Write a summary of scope 1 and scope 3 emission related to target Baseline Year, target end/horizon year,
-percentage reduction. Give output in a json format.'''
+    query = 'Give me courses that cover the topic of machine learning?'
+    db = load_embeddings()
     topk_nodes=12
     topk_chunks = 12
     topk_internal_rel = 12
     topk_external_rel = 12
     nodes = db.similarity_search(query,topk_nodes)
-
+    # print("nodes ------")
+    # print(nodes)
     # getting associated text chunks
     chunks = []
+   
     query_embed = ollama.embeddings(model="nomic-embed-text", prompt=query)['embedding']
     for node in nodes:
-        chunks.extend(G.nodes[node.metadata["source"]]['chunks'])
+        # print("node ------")
+        # print(node.metadata["source"])
+        chunks.extend(G.nodes[node.metadata["source"]])
+       
 
     chunks = list(set(chunks))
     chunks_selected = chunks
     len(chunks_selected)
+    # print("chunks_selected ------")
+    # print(chunks_selected)
 
     # getting top k internal and external relationships 
-    within_relationships = []
-    between_relationships = []
+    relationships = []
+    
     nodes_info = []
     nodes_set = set([x.metadata["source"] for x in nodes])
 
     for node1, node2, data in G.edges(data=True):
+        # print("data ------")
+        # print(data)
         relationship_info = {
             "start": node1,
             "end": node2,
             "description": data["relationship"],
-            "score": data["score"]
+            
         }
         if node1 in nodes_set and node2 in nodes_set:
-            within_relationships.append(relationship_info)
-        elif (node1 in nodes_set and node2 not in nodes_set) or (node2 in nodes_set and node1 not in nodes_set):
-            between_relationships.append(relationship_info)
-
-    within_relationships = sorted(within_relationships, key=lambda x: x["score"], reverse=True)[:topk_internal_rel]
-    between_relationships = sorted(between_relationships, key=lambda x: x["score"], reverse=True)[:topk_external_rel]
+            relationships.append(relationship_info)
+        
 
     all_nodes = set()
-    relationships = within_relationships + between_relationships
-
+    
     for rel in relationships:
         all_nodes.add(rel["start"])
         all_nodes.add(rel["end"])
@@ -86,7 +108,8 @@ percentage reduction. Give output in a json format.'''
             node_data = G.nodes[node]
             node_info = {
                 "id": node,
-                "description": node_data["description"]
+                "description": node_data["description"],
+                "prerequisites": node_data["prerequisites"]
             }
             nodes_info.append(node_info)
 
@@ -110,7 +133,7 @@ percentage reduction. Give output in a json format.'''
 
     prompt = PREDICTION_PROMPT.replace("{question}", query)
     prompt = prompt.replace("{context}", context)
-
+    print(context)
     # generating response
     answer = await client.chat.completions.create(
                 model="gpt-4o-mini",

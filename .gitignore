@@ -12,7 +12,7 @@ backend/venv
 backend/env/
 backend/cache/
 backend/rec.ipynb
-
+path/to/chroma_db
 node_modules
 dist
 dist-ssr

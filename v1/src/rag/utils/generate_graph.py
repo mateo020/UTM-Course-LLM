@@ -167,7 +167,7 @@ async def create_hierarchical_clustering(G):
             data["community_summaries"] = " "
 
 
-def store_embeddings(G):
+def store_embeddings(G, persist_dir="chroma_db"):
     embeddings = OllamaEmbeddings(model="nomic-embed-text")
 
     # store node embeddings in vector database
@@ -181,12 +181,19 @@ def store_embeddings(G):
         docs.append(doc)
 
     embedding_function = OllamaEmbeddings(model="nomic-embed-text")
-    db = Chroma.from_documents(docs, embedding_function)
 
+    db = Chroma.from_documents(docs, embedding=embeddings, persist_directory=persist_dir)
+    # db.persist()  
+    print(f"[INFO] Vector DB saved to {persist_dir}")
     # save Knowledge graph created in json
     with open("graph.json", "w") as f:
         json.dump(json_graph.node_link_data(G), f)
 
+def load_embeddings(persist_dir="chroma_db"):
+    embeddings = OllamaEmbeddings(model="nomic-embed-text")
+    db = Chroma(embedding_function=embeddings, persist_directory=persist_dir)
+    print(f"[INFO] Vector DB loaded from {persist_dir}")
+    return db
 
 
 if __name__ == "__main__":
