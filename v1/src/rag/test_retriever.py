@@ -1,91 +1,164 @@
-import unittest
+import asyncio
+from langchain_chroma import Chroma
+from langchain_ollama import OllamaEmbeddings
+import openai
+import ollama
+import networkx as nx
+import json
 from pathlib import Path
-import os
-from dotenv import load_dotenv
-from ..rag.retriever import setup_rag, get_relevant_context, set_rag_retriever
+from networkx.readwrite import json_graph
+from langchain_core.documents import Document
+from tqdm import tqdm
 
-class TestRetriever(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        """Set up test fixtures that can be reused across tests."""
-        load_dotenv()
+client = openai.AsyncOpenAI()  # Optionally: api_key="YOUR_API_KEY"
+
+embedding_function = OllamaEmbeddings(model="nomic-embed-text")
+
+
+
+ROOT_DIR = Path(__file__).resolve().parents[2]
+
+DOCUMENTS_DIR = ROOT_DIR / "files"
+
+
+def load_embeddings(persist_dir="chroma_db"):
+    print("--------------------------------")
+    print("load_embeddings")
+    print("--------------------------------")
+    db_path = Path(persist_dir)
+    print(f"Looking for DB at: {db_path.absolute()}")
+    print(f"DB exists: {db_path.exists()}")
+    
+    if db_path.exists():
+        files = list(db_path.glob("*"))
+        print(f"Files in DB dir: {files}")
+    else:
+        print(f"DB not found at: {db_path.absolute()}") 
+    
+    embeddings = OllamaEmbeddings(model="nomic-embed-text")
+    db = Chroma(embedding_function=embeddings, persist_directory=str(persist_dir))
+    
+    # Test if DB has any documents
+    test_docs = db.similarity_search("test", k=1)
+    print(f"DB has {len(test_docs)} documents")
+    
+    return db
+# load knowledge graph
+G = nx.Graph()
+with open(DOCUMENTS_DIR / "graph.json", "r") as f:
+    G_data = json.load(f)
+    G = json_graph.node_link_graph(G_data)
+
+
+
+PREDICTION_PROMPT = '''
+You are an helpful Question Answering AI assistant based on the relevant context provided.
+In the context, you are provide informations of some text chunks. Along with that you are also provided information about nodes, relationships and community summaries of the nodes extracted from a relevant portion of knowledge graph according to the question asked. The information is provided in the below format:
+CHUNK TEXT: Text chunks provided 
+\n\nNODES : Information about nodes having "id" and "node description" and "prerequisites" 
+\n\nRELATIONSHIPS : Relationpships between the nodes contating "start" and "end". Start node is a prerequisite of End node.
+\n\nCUMMUNITY SUMMARIES: Community summaries of the nodes in a list, similar courses.
+
+#########################################################
+Answer the question based on the above context provided and predict the most relevant answer.
+
+Context: {context}
+
+Question: {question}
+
+Answer:
+'''
+async def main():
+    query = 'Give me courses that cover the topic of machine learning?'
+    db = load_embeddings()
+    topk_nodes=12
+    topk_chunks = 12
+    topk_internal_rel = 12
+    topk_external_rel = 12
+    nodes = db.similarity_search(query,topk_nodes)
+    # print("nodes ------")
+    # print(nodes)
+    # getting associated text chunks
+    chunks = []
+   
+    query_embed = ollama.embeddings(model="nomic-embed-text", prompt=query)['embedding']
+    for node in nodes:
+        # print("node ------")
+        # print(node.metadata["source"])
+        chunks.extend(G.nodes[node.metadata["source"]])
+       
+
+    chunks = list(set(chunks))
+    chunks_selected = chunks
+    len(chunks_selected)
+    # print("chunks_selected ------")
+    # print(chunks_selected)
+
+    # getting top k internal and external relationships 
+    relationships = []
+    
+    nodes_info = []
+    nodes_set = set([x.metadata["source"] for x in nodes])
+
+    for node1, node2, data in G.edges(data=True):
+        # print("data ------")
+        # print(data)
+        relationship_info = {
+            "start": node1,
+            "end": node2,
+            "description": data["relationship"],
+            
+        }
+        if node1 in nodes_set and node2 in nodes_set:
+            relationships.append(relationship_info)
         
-        # Get the absolute path to the course_data.txt file
-        root_dir = Path(__file__).resolve().parents[3]
-        documents_dir = root_dir / "backend" / "files"
-        course_data_path = documents_dir / "course_data.txt"
-        
-        print(f"Setting up RAG with file: {course_data_path}")
-        print(f"File exists: {course_data_path.exists()}")
-        
-        # Initialize the RAG retriever
-        retriever = setup_rag([str(course_data_path)])
-        print(f"Retriever created: {retriever is not None}")
-        set_rag_retriever(retriever)
 
-    def test_basic_retrieval(self):
-        """Test basic retrieval functionality."""
-        query = "What are the prerequisites for CSC108?"
-        print(f"\nTesting query: {query}")
-        context = get_relevant_context(query)
-        
-        print(f"Context received: {context[:100]}...")  # Print first 100 chars
-        
-        # Check that we got some context back
-        self.assertIsNotNone(context)
-        self.assertIsInstance(context, str)
-        self.assertGreater(len(context), 0)
-        
-        # Check that the context contains relevant information
-        self.assertIn("CSC108", context)
-        self.assertIn("prerequisites", context.lower())
+    all_nodes = set()
+    
+    for rel in relationships:
+        all_nodes.add(rel["start"])
+        all_nodes.add(rel["end"])
 
-    def test_empty_query(self):
-        """Test handling of empty queries."""
-        context = get_relevant_context("")
-        self.assertEqual(context, "")
+    for node in all_nodes:
+        if node in G.nodes:
+            node_data = G.nodes[node]
+            node_info = {
+                "id": node,
+                "description": node_data["description"],
+                "prerequisites": node_data["prerequisites"]
+            }
+            nodes_info.append(node_info)
 
-    def test_nonexistent_course(self):
-        """Test query for a nonexistent course."""
-        query = "What are the prerequisites for XYZ999?"
-        context = get_relevant_context(query)
-        self.assertEqual(context, "")
+    relationships_selected = {
+        "nodes": nodes_info,
+        "relationships": relationships
+    }
 
-    def test_specific_course_info(self):
-        """Test retrieval of specific course information."""
-        query = "What is the course code for Introduction to Computer Programming?"
-        context = get_relevant_context(query)
-        self.assertIn("CSC108", context)
+    # getting immediate summaries
+    summaries_selected = []
+    for node in nodes:
+        summaries_selected.append(G.nodes[node.metadata["source"]]['community_summaries'][0])
 
-    def test_multiple_results(self):
-        """Test that we get multiple relevant results."""
-        query = "What are the prerequisites for computer science courses?"
-        context = get_relevant_context(query)
-        
-        # Check that we have multiple numbered contexts
-        self.assertIn("[1]", context)
-        self.assertIn("[2]", context)
-        self.assertIn("[3]", context)
-        self.assertIn("[4]", context)
+    len(summaries_selected)
 
-    def test_special_characters(self):
-        """Test handling of queries with special characters."""
-        query = "What are the prerequisites for CSC108H5?"
-        context = get_relevant_context(query)
-        self.assertIn("CSC108H5", context)
+    # generating prompt
+    context = "CHUNK TEXT: \n" + "\n".join(chunks_selected) + \
+            "\n\nNODES: \n" + str(relationships_selected["nodes"]) + \
+            "\n\nRELATIONSHIPS: \n" + str(relationships_selected["relationships"]) + \
+            "\n\nCUMMUNITY SUMMARIES: \n" + str(summaries_selected)
 
-    def test_long_query(self):
-        """Test handling of long queries."""
-        query = "What are the prerequisites and course requirements for CSC108 Introduction to Computer Programming at UTM?"
-        context = get_relevant_context(query)
-        self.assertGreater(len(context), 0)
-        self.assertIn("CSC108", context)
+    prompt = PREDICTION_PROMPT.replace("{question}", query)
+    prompt = prompt.replace("{context}", context)
+    print(context)
+    # generating response
+    answer = await client.chat.completions.create(
+                model="gpt-4o-mini",
+                temperature=0.1,
+                messages=[{"role": "user", "content": prompt}],
+                stream=False,
+                seed=42
+            )
+    print(answer.choices[0].message.content)
 
-    def test_no_relevant_context(self):
-        """Test query that should have no relevant context."""
-        query = "What is the weather like in Toronto?"
-        context = get_relevant_context(query)
-        self.assertEqual(context, "")
-
-if __name__ == '__main__':
-    unittest.main() 
+if __name__ == "__main__":
+    asyncio.run(main())
