@@ -34,7 +34,7 @@ DOCUMENTS_DIR = ROOT_DIR / "files"
 
 
 
-def load_embeddings(persist_dir="../chroma_db"):
+def load_embeddings(persist_dir="chroma_db"):
     print("--------------------------------")
     print("load_embeddings")
     print("--------------------------------")
@@ -68,7 +68,7 @@ class GraphRetriever:
     Suitable for DSPy MultiHop.
     """
     def __init__(self, k: int = 12):
-        self.db, self.G, self.k = load_embeddings("../chroma_db"), G, k
+        self.db, self.G, self.k = load_embeddings(), G, k
 
     def __call__(self, query: str) -> Dict[str, List[str]]:
         # 1) semantic search
