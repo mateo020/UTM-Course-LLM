@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Dict
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 import os
@@ -36,30 +36,28 @@ router = APIRouter()
 ROOT_DIR = Path(__file__).resolve().parents[5] 
 DOCUMENTS_DIR = ROOT_DIR / "v1" / "files"
 from v1.src.rag.retriever import setup_rag, set_rag_retriever, get_relevant_context, get_rag_retriever
+from v1.src.rag.retriever_graph import GraphRetriever
 from v1.src.DSPY.rag_dspy import RAGRetriever
 from v1.src.DSPY.multi_hop import MultiHop
+from v1.src.rag.resources import load_embeddings, load_graph
+
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     raise ValueError("Missing OPENAI_API_KEY")
 
-# Initialize RAG retriever
-retriever = setup_rag([
-    str(DOCUMENTS_DIR / "course_data.txt"),
-    str(DOCUMENTS_DIR / "program_info.txt")
-])
-set_rag_retriever(retriever)
-print("RAG retriever initialized with both course data and program info")
-# print(retriever)
-# print(get_relevant_context("test"))
-# print("="*80)
+# # Initialize RAG retriever
+# retriever = setup_rag([
+#     str(DOCUMENTS_DIR / "course_data.txt"),
+#     str(DOCUMENTS_DIR / "program_info.txt")
+# ])
+# set_rag_retriever(retriever)
+# print("RAG retriever initialized with both course data and program info")
 
-# llm = ChatOpenAI(
-#     api_key=OPENAI_API_KEY,
-#     model="gpt-4",
-#     temperature=0,
-#     streaming=False,
-# import dspy
+# db = load_embeddings()
+# print(db)
+# G = load_graph()
+# print("G initialized")
 
 
 
@@ -67,45 +65,30 @@ llm = dspy.LM('gpt-4o-mini', api_key=os.getenv("OPENAI_API_KEY"))
 
 dspy.configure(lm=llm)
 
-# class InMemoryHistory(BaseChatMessageHistory, BaseModel):
-#     """In memory implementation of chat message history."""
 
-#     messages: List[BaseMessage] = Field(default_factory=list)
 
-#     def add_messages(self, messages: List[BaseMessage]) -> None:
-#         """Add a list of messages to the store"""
-#         self.messages.extend(messages)
 
-#     def clear(self) -> None:
-#         self.messages = []
 
-store = {}
 
-# def get_session_history(
-#     user_id: str, conversation_id: str
-# ) -> BaseChatMessageHistory:
-#     if (user_id, conversation_id) not in store:
-#         store[(user_id, conversation_id)] = InMemoryHistory()
-#     return store[(user_id, conversation_id)]
 
-prompt = ChatPromptTemplate.from_messages([
-    ("system", "You're an assistant who's good at {ability}"),
-    MessagesPlaceholder(variable_name="history"),
-    ("human", "{question}"),
-])
-   
-prompt_template = """
-You are an academic assistant. Answer based on the context.
-If the context is not relevant, state that clearly. Don't answer with anything other than what is in the context.
 
-Context:
-{context}
+prompt_template = '''
+You are an helpful Question Answering AI assistant based on the relevant context provided.
+In the context, you are provide informations of some text chunks. Along with that you are also provided information about nodes, relationships and community summaries of the nodes extracted from a relevant portion of knowledge graph according to the question asked. The information is provided in the below format:
 
-Question:
-{question}
+\n\nNODES : Information about nodes having "id" and "node description" and "prerequisites" 
+\n\nRELATIONSHIPS : Relationpships between the nodes contating "start" and "end". Start node is a prerequisite of End node.
+\n\nCUMMUNITY SUMMARIES: Community summaries of the nodes in a list, similar courses.
+
+#########################################################
+Answer the question based on the above context provided and predict the most relevant answer.
+
+Context: {context}
+
+Question: {question}
 
 Answer:
-"""
+'''
 
 
 
@@ -114,30 +97,7 @@ rag_chain = prompt | llm | StrOutputParser()
 
 
 
-# with_message_history = RunnableWithMessageHistory(
-#     rag_chain,
-#     get_session_history=get_session_history,
-#     input_messages_key="question",
-#     history_messages_key="history",
-#     history_factory_config=[
-#         ConfigurableFieldSpec(
-#             id="user_id",
-#             annotation=str,
-#             name="User ID",
-#             description="Unique identifier for the user.",
-#             default="",
-#             is_shared=True,
-#         ),
-#         ConfigurableFieldSpec(
-#             id="conversation_id",
-#             annotation=str,
-#             name="Conversation ID",
-#             description="Unique identifier for the conversation.",
-#             default="",
-#             is_shared=True,
-#         ),
-#     ],
-# )
+
 
 class ChatRequest(BaseModel):
     question: str
@@ -147,15 +107,25 @@ class ChatRequest(BaseModel):
 @router.post("/chat")
 async def chat_endpoint(request: ChatRequest, http_request: Request):
     try:
+        print("=== CHAT ENDPOINT STARTED ===")
+        
         if not request.question:
             raise HTTPException(status_code=400, detail="Question is required.")
 
+        print("=== ABOUT TO CREATE RETRIEVER ===")
         session_id = request.session_id or str(uuid.uuid4())
         user_id = str(uuid.uuid4())
+        
+        retriever = GraphRetriever(k=12)  # This line calls load_embeddings()
+        print("=== RETRIEVER CREATED ===")
+        
+        print("--------------------------------")
+        print("retriever initialized")
+        print("--------------------------------")
+        multi_hop = MultiHop(retriever=retriever, passages_per_hop=5, max_hops=4)
 
-        rag_retriever = get_rag_retriever()
-        dspy_retriever = RAGRetriever(rag_retriever)
-        multi_hop = MultiHop(dspy_retriever)
+        
+        
 
         print(f"[DEBUG] Running multi-hop for question: {request.question}")
         response = multi_hop(request.question)
