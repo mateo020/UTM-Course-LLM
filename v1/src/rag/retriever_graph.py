@@ -6,7 +6,9 @@ import networkx as nx
 from networkx.readwrite import json_graph
 from langchain_chroma import Chroma
 from langchain_ollama import OllamaEmbeddings
+import re
 
+COURSE_RE = re.compile(r'\b[A-Z]{3}\s*\d{3}[A-Z]?\b') 
 from langchain_core.documents import Document
 PREDICTION_PROMPT = '''
 You are an helpful Question Answering AI assistant based on the relevant context provided.
@@ -70,15 +72,43 @@ class GraphRetriever:
     def __init__(self, k: int = 12):
         self.db, self.G, self.k = load_embeddings(), G, k
 
+    def _extract_course_codes(self, query: str) -> set[str]:
+        """Pull explicit course codes out of the query."""
+        # normalise to “CSC384” instead of “CSC 384”
+        return {re.sub(r'\s+', '', m) for m in COURSE_RE.findall(query.upper())}
+
+    def _fetch_docs_by_code(self, code: str, n_chunks: int = 3) -> List[Document]:
+        """Grab a few chunks whose metadata["source"] == code."""
+        # Chroma v0.4+: db.get(where=…) returns matching docs + embeddings
+        out = self.db.get(
+            where={'source': code},
+            include=['documents'],
+            limit=n_chunks
+        )
+        return [
+            Document(page_content=text, metadata={'source': code})
+            for text in out['documents']
+        ]
+
     def __call__(self, query: str) -> Dict[str, List[str]]:
         # 1) semantic search
         docs: List[Document] = self.db.similarity_search(query, self.k)
-        print("--------------------------------")
-        print(docs)
-        print("--------------------------------")
+        explicit_codes = self._extract_course_codes(query)
+        present_codes  = {d.metadata["source"] for d in docs}
+        # missing_codes  = explicit_codes - present_codes
+        # print(missing_codes)
+        for code in explicit_codes:
+            docs.extend(self._fetch_docs_by_code(code))
+
+
+        
+        # print("--------------------------------")
+        # print(docs)
+        # print("--------------------------------")
         # 2) build enriched passages
         passages: List[str] = []
         node_set = {d.metadata["source"] for d in docs}
+        print(node_set)
 
         for code in node_set:
             data = self.G.nodes[code]

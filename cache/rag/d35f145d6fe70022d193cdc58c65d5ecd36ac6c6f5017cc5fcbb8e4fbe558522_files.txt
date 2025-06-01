@@ -1,0 +1,2 @@
+/Users/mateoarcos/Documents/GitHub/UTM-Course-LLM/v1/files/course_data.txt
+/Users/mateoarcos/Documents/GitHub/UTM-Course-LLM/v1/files/program_info.txt

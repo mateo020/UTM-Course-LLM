@@ -1,25 +1,98 @@
-import asyncio
-from langchain_chroma import Chroma
-from langchain_ollama import OllamaEmbeddings
-import openai
-import ollama
-import networkx as nx
+from typing import List, Optional, Dict
+from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
+import os
+import sys
+import uuid
 import json
-from pathlib import Path
+import networkx as nx
 from networkx.readwrite import json_graph
-from langchain_core.documents import Document
-from tqdm import tqdm
+from pathlib import Path
+from dotenv import load_dotenv
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.document_loaders import TextLoader
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_community.vectorstores import FAISS
+from langchain.prompts import ChatPromptTemplate
+from langchain.chains import create_retrieval_chain
+from langchain.schema.output_parser import StrOutputParser
+from langchain.chains import create_history_aware_retriever
+from langchain_ollama import OllamaEmbeddings
+from langchain_chroma import Chroma
 
-client = openai.AsyncOpenAI()  # Optionally: api_key="YOUR_API_KEY"
+from langchain_core.runnables import (
+    RunnableLambda,
+    ConfigurableFieldSpec,
+    RunnablePassthrough,
+)
+import dspy
+load_dotenv()
+# Add v1
+root_dir = Path(__file__).resolve().parents[5]
+sys.path.append(str(root_dir))
+sys.path.append(str(root_dir / 'v1'))
+sys.path.append(str(root_dir / 'v1' / 'src'))
+router = APIRouter()
 
-embedding_function = OllamaEmbeddings(model="nomic-embed-text")
+#absolute paths 
+ROOT_DIR = Path(__file__).resolve().parents[3]
+DOCUMENTS_DIR = ROOT_DIR / "v1" / "files"
+from v1.src.rag.retriever import setup_rag, set_rag_retriever, get_relevant_context, get_rag_retriever
+from v1.src.rag.retriever_graph import GraphRetriever
+from v1.src.DSPY.rag_dspy import RAGRetriever
+from v1.src.DSPY.multi_hop import MultiHop
+from v1.src.rag.resources import load_embeddings, load_graph
+
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
+    raise ValueError("Missing OPENAI_API_KEY")
 
 
 
-ROOT_DIR = Path(__file__).resolve().parents[2]
+# # Initialize RAG retriever
+retriever_vectorstore = setup_rag([
+    str(DOCUMENTS_DIR / "course_data.txt"),
+    str(DOCUMENTS_DIR / "program_info.txt")
+])
+set_rag_retriever(retriever_vectorstore)
+print("RAG retriever initialized with both course data and program info")
 
-DOCUMENTS_DIR = ROOT_DIR / "files"
+# db = load_embeddings()
+# print(db)
+# G = load_graph()
+# print("G initialized")
 
+
+
+llm = dspy.LM('gpt-4o-mini', api_key=os.getenv("OPENAI_API_KEY"))
+
+dspy.configure(lm=llm)
+
+
+
+
+
+
+
+
+prompt_template = '''
+You are an helpful Question Answering AI assistant based on the relevant context provided.
+In the context, you are provide informations of some text chunks. Along with that you are also provided information about nodes, relationships and community summaries of the nodes extracted from a relevant portion of knowledge graph according to the question asked. The information is provided in the below format:
+
+\n\nNODES : Information about nodes having "id" and "node description" and "prerequisites" 
+\n\nRELATIONSHIPS : Relationpships between the nodes contating "start" and "end". Start node is a prerequisite of End node.
+\n\nCUMMUNITY SUMMARIES: Community summaries of the nodes in a list, similar courses.
+
+#########################################################
+Answer the question based on the above context provided and predict the most relevant answer.
+
+Context: {context}
+
+Question: {question}
+
+Answer:
+'''
 
 def load_embeddings(persist_dir="chroma_db"):
     print("--------------------------------")
@@ -43,122 +116,74 @@ def load_embeddings(persist_dir="chroma_db"):
     print(f"DB has {len(test_docs)} documents")
     
     return db
-# load knowledge graph
-G = nx.Graph()
-with open(DOCUMENTS_DIR / "graph.json", "r") as f:
-    G_data = json.load(f)
-    G = json_graph.node_link_graph(G_data)
 
+prompt = ChatPromptTemplate.from_template(prompt_template)
+rag_chain = prompt | llm | StrOutputParser()
 
+def rag_vectorstore(query):
+    rag_retriever = get_rag_retriever()
+    dspy_retriever = RAGRetriever(rag_retriever)
+    multi_hop = MultiHop(dspy_retriever)
 
-PREDICTION_PROMPT = '''
-You are an helpful Question Answering AI assistant based on the relevant context provided.
-In the context, you are provide informations of some text chunks. Along with that you are also provided information about nodes, relationships and community summaries of the nodes extracted from a relevant portion of knowledge graph according to the question asked. The information is provided in the below format:
-CHUNK TEXT: Text chunks provided 
-\n\nNODES : Information about nodes having "id" and "node description" and "prerequisites" 
-\n\nRELATIONSHIPS : Relationpships between the nodes contating "start" and "end". Start node is a prerequisite of End node.
-\n\nCUMMUNITY SUMMARIES: Community summaries of the nodes in a list, similar courses.
+    print(f"[DEBUG] Running multi-hop for question: {query}")
+    response = multi_hop(query)
+    llm.inspect_history(1)
 
-#########################################################
-Answer the question based on the above context provided and predict the most relevant answer.
-
-Context: {context}
-
-Question: {question}
-
-Answer:
-'''
-async def main():
-    query = 'Give me courses that cover the topic of machine learning?'
-    db = load_embeddings()
-    topk_nodes=12
-    topk_chunks = 12
-    topk_internal_rel = 12
-    topk_external_rel = 12
-    nodes = db.similarity_search(query,topk_nodes)
-    # print("nodes ------")
-    # print(nodes)
-    # getting associated text chunks
-    chunks = []
-   
-    query_embed = ollama.embeddings(model="nomic-embed-text", prompt=query)['embedding']
-    for node in nodes:
-        # print("node ------")
-        # print(node.metadata["source"])
-        chunks.extend(G.nodes[node.metadata["source"]])
-       
-
-    chunks = list(set(chunks))
-    chunks_selected = chunks
-    len(chunks_selected)
-    # print("chunks_selected ------")
-    # print(chunks_selected)
-
-    # getting top k internal and external relationships 
-    relationships = []
-    
-    nodes_info = []
-    nodes_set = set([x.metadata["source"] for x in nodes])
-
-    for node1, node2, data in G.edges(data=True):
-        # print("data ------")
-        # print(data)
-        relationship_info = {
-            "start": node1,
-            "end": node2,
-            "description": data["relationship"],
-            
-        }
-        if node1 in nodes_set and node2 in nodes_set:
-            relationships.append(relationship_info)
-        
-
-    all_nodes = set()
-    
-    for rel in relationships:
-        all_nodes.add(rel["start"])
-        all_nodes.add(rel["end"])
-
-    for node in all_nodes:
-        if node in G.nodes:
-            node_data = G.nodes[node]
-            node_info = {
-                "id": node,
-                "description": node_data["description"],
-                "prerequisites": node_data["prerequisites"]
-            }
-            nodes_info.append(node_info)
-
-    relationships_selected = {
-        "nodes": nodes_info,
-        "relationships": relationships
+    return {
+        "answer": response.answer,
+        "context": response.context,
     }
 
-    # getting immediate summaries
-    summaries_selected = []
-    for node in nodes:
-        summaries_selected.append(G.nodes[node.metadata["source"]]['community_summaries'][0])
 
-    len(summaries_selected)
+def graph_rag(query):
+    try:
+        print("=== CHAT ENDPOINT STARTED ===")
+        
+       
+        print("=== ABOUT TO CREATE RETRIEVER ===")
 
-    # generating prompt
-    context = "CHUNK TEXT: \n" + "\n".join(chunks_selected) + \
-            "\n\nNODES: \n" + str(relationships_selected["nodes"]) + \
-            "\n\nRELATIONSHIPS: \n" + str(relationships_selected["relationships"]) + \
-            "\n\nCUMMUNITY SUMMARIES: \n" + str(summaries_selected)
+        
+        
+        retriever = GraphRetriever(k=12)  # This line calls load_embeddings()
+        print("=== RETRIEVER CREATED ===")
+        
+        print("--------------------------------")
+        print("retriever initialized")
+        print("--------------------------------")
+        multi_hop = MultiHop(retriever=retriever, passages_per_hop=5, max_hops=4)
 
-    prompt = PREDICTION_PROMPT.replace("{question}", query)
-    prompt = prompt.replace("{context}", context)
-    print(context)
-    # generating response
-    answer = await client.chat.completions.create(
-                model="gpt-4o-mini",
-                temperature=0.1,
-                messages=[{"role": "user", "content": prompt}],
-                stream=False,
-                seed=42
-            )
-    print(answer.choices[0].message.content)
+        
+        
+
+        print(f"[DEBUG] Running multi-hop for question: {query}")
+        response = multi_hop(query)
+        llm.inspect_history(1)
+
+        return {
+            "answer": response.answer,
+            "context": response.context,
+        
+        }
+
+    except Exception as e:
+        print(f"[ERROR] Chat endpoint failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+def main():
+    query = "What are the prerequisites for the course csc369?"
+    
+    graph_rag(query)
+    # rag_vectorstore(query)
+    # db = load_embeddings()
+    # G = nx.Graph()
+    # with open(DOCUMENTS_DIR / "graph.json", "r") as f:
+    #     G_data = json.load(f)
+    #     G = json_graph.node_link_graph(G_data)
+
+    # print(G.nodes["CSC369H5"])
+    
+        
+
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
