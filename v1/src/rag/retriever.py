@@ -99,12 +99,12 @@ def setup_rag(file_paths: List[str]):
             child_splitter=RecursiveCharacterTextSplitter(
                 chunk_size=1000,
                 chunk_overlap=0,
-                separators=["\n", "•","\n\n"],
+                separators=["\n","\n\n"],
             ),
             parent_splitter=RecursiveCharacterTextSplitter(
                 chunk_size=500,
                 chunk_overlap=500,
-                separators=["\n", "•","\n\n"],
+                separators=["\n","\n\n"],
             ),
             earch_kwargs={"k": 4},
         )
@@ -113,12 +113,12 @@ def setup_rag(file_paths: List[str]):
     child_splitter=RecursiveCharacterTextSplitter(
         chunk_size=1000,
         chunk_overlap=0,
-        separators=[":", "•","\n\n"],
+        separators=["\n","\n\n"],
     )
     parent_splitter=RecursiveCharacterTextSplitter(
         chunk_size=500,
         chunk_overlap=500,
-        separators=[":","\n\n"],
+        separators=["\n","\n\n"],
     )
     embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
     vector_store = FAISS.from_texts(["placeholder"], embeddings)

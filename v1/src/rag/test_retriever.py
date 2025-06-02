@@ -49,11 +49,20 @@ if not OPENAI_API_KEY:
     raise ValueError("Missing OPENAI_API_KEY")
 
 
+# Check if data sources exist
+course_data_path = DOCUMENTS_DIR / "course_data.txt"
+program_info_path = DOCUMENTS_DIR / "program_info.txt"
+courses_path = DOCUMENTS_DIR / "courses.json"
 
-# # Initialize RAG retriever
+if not course_data_path.exists():
+    raise FileNotFoundError(f"Course data file not found at: {course_data_path}")
+if not program_info_path.exists():
+    raise FileNotFoundError(f"Program info file not found at: {program_info_path}")
+
+# Initialize RAG retriever
 retriever_vectorstore = setup_rag([
-    str(DOCUMENTS_DIR / "course_data.txt"),
-    str(DOCUMENTS_DIR / "program_info.txt")
+    str(course_data_path),
+    str(program_info_path)
 ])
 set_rag_retriever(retriever_vectorstore)
 print("RAG retriever initialized with both course data and program info")
@@ -68,7 +77,6 @@ print("RAG retriever initialized with both course data and program info")
 llm = dspy.LM('gpt-4o-mini', api_key=os.getenv("OPENAI_API_KEY"))
 
 dspy.configure(lm=llm)
-
 
 
 
@@ -170,7 +178,7 @@ def graph_rag(query):
         raise HTTPException(status_code=500, detail=str(e))
 
 def main():
-    query = "What are the prerequisites for the course csc369?"
+    query = "what are the prerequisites for CSC209?"
     
     graph_rag(query)
     # rag_vectorstore(query)
